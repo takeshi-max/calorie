@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>🥗 AI カロリーチェッカー Pro</title>
+  <title>🥗 AI カロリーチェッカー Pro (2026版)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f2f2f7; margin: 0; padding: 20px; color: #1c1c1e; }
@@ -14,8 +14,7 @@
     button:disabled { background: #ccc; }
     .chart-container { width: 100%; height: 250px; }
     .log-item { background: white; padding: 14px; border-radius: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e5e5ea; }
-    .transfer-box { background: #fff; border: 2px dashed #34c759; padding: 15px; border-radius: 12px; }
-    #preview { width: 100%; border-radius: 12px; margin-bottom: 15px; display: none; }
+    #preview { width: 100%; border-radius: 12px; margin-bottom: 15px; display: none; border: 1px solid #eee; }
   </style>
 </head>
 <body>
@@ -26,7 +25,6 @@
     <label style="font-size:12px; color:#888;">食べた日付</label>
     <input type="date" id="recordDate" />
     
-    <!-- 修正点：プレビュー画像を表示する要素を追加 -->
     <img id="preview">
     
     <input type="file" id="imageInput" accept="image/*" onchange="handleImageSelect(event)" />
@@ -52,12 +50,6 @@
     <div id="logList"></div>
   </div>
 
-  <div class="card transfer-box">
-    <div style="font-weight:bold; font-size:14px; color:#34c759; margin-bottom:10px;">📲 データの強力復元</div>
-    <textarea id="transferArea" rows="3" placeholder="ここにデータを貼り付け"></textarea>
-    <button style="background:#0284c7;" onclick="importData()">データを復元する</button>
-  </div>
-
 <script>
   let mealLogs = [];
   let calorieChart = null;
@@ -75,7 +67,6 @@
   function handleImageSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
-    
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
@@ -86,16 +77,10 @@
         if (w > h) { if (w > max) { h *= max / w; w = max; } } else { if (h > max) { w *= max / h; h = max; } }
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        
-        // 画像データを保存
         base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-        
-        // 修正点：プレビュー要素が存在することを確認してから表示
         const previewEl = document.getElementById('preview');
-        if (previewEl) {
-          previewEl.src = canvas.toDataURL('image/jpeg');
-          previewEl.style.display = 'block';
-        }
+        previewEl.src = canvas.toDataURL('image/jpeg');
+        previewEl.style.display = 'block';
         document.getElementById('analyzeBtn').disabled = false;
       };
       img.src = e.target.result;
@@ -106,23 +91,29 @@
   async function startAnalysis() {
     const apiKey = document.getElementById('apiKey').value.trim();
     if (!apiKey) return alert("APIキーを入力してください");
-    
-    // APIキーを保存
     localStorage.setItem('calorie_key_v2026', apiKey);
 
     const btn = document.getElementById('analyzeBtn');
-    btn.innerText = "解析中...";
+    btn.innerText = "最新モデルを探索中...";
     btn.disabled = true;
 
     try {
-      // モデル自動探査（執念のロジック）
+      // --- 強化版：執念のモデル探査ロジック ---
       const mRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
       const mData = await mRes.json();
-      // gemini-1.5-flashを最優先で探す
-      const models = mData.models.filter(m => m.supportedGenerationMethods.includes("generateContent"));
-      const modelName = models.find(m => m.name.includes("1.5-flash"))?.name || 
-                        models.find(m => m.name.includes("flash"))?.name || 
-                        models[0].name;
+      
+      // 1. generateContentに対応しているモデルを抽出
+      let models = mData.models.filter(m => m.supportedGenerationMethods.includes("generateContent"));
+      
+      // 2. バージョン番号（3.6 > 2.5など）を考慮して降順にソート
+      models.sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+      // 3. 「flash」が含まれる中で最も新しいものを選択
+      const latestFlash = models.find(m => m.name.includes("flash"));
+      const modelName = latestFlash ? latestFlash.name : models[0].name;
+      
+      console.log("使用モデル:", modelName);
+      btn.innerText = "解析中...";
 
       const prompt = `写真の食事を分析し、カロリーと栄養素を推定してJSONで返してください。
       形式: {"dishName":"料理名","calories":数値,"protein":数値,"fat":数値,"carbs":数値}`;
@@ -142,17 +133,11 @@
       const rawText = data.candidates[0].content.parts[0].text;
       const result = JSON.parse(rawText.match(/\{.*\}/s)[0]);
 
-      // UI更新
       document.getElementById('resDishName').textContent = result.dishName;
       document.getElementById('resCalories').textContent = result.calories;
       document.getElementById('resultBox').style.display = 'block';
 
-      // ログ保存
-      mealLogs.push({ 
-        id: Date.now(), 
-        date: document.getElementById('recordDate').value, 
-        ...result 
-      });
+      mealLogs.push({ id: Date.now(), date: document.getElementById('recordDate').value, ...result });
       mealLogs.sort((a,b) => new Date(b.date) - new Date(a.date));
       localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
       updateUI();
@@ -166,7 +151,6 @@
     }
   }
 
-  // --- 以下、ログ表示・グラフ・復元ロジック（変更なし） ---
   function updateUI() {
     const month = document.getElementById('monthPicker').value;
     const list = document.getElementById('logList');
@@ -189,7 +173,7 @@
   }
 
   function deleteLog(id) {
-    if (confirm("この記録を削除しますか？")) { 
+    if (confirm("削除しますか？")) { 
       mealLogs = mealLogs.filter(l => l.id !== id); 
       localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs)); 
       updateUI(); 
@@ -211,28 +195,6 @@
     };
     if (calorieChart) { calorieChart.data = data; calorieChart.update(); }
     else { calorieChart = new Chart(ctx, { type: 'bar', data: data, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } }); }
-  }
-
-  function importData() {
-    let input = document.getElementById('transferArea').value.trim();
-    if (!input) return alert("データを貼り付けてください");
-    try {
-      input = input.replace(/^"/, '').replace(/"$/, '').replace(/\\"/g, '"');
-      const start = input.indexOf('[');
-      const end = input.lastIndexOf(']');
-      if (start === -1 || end === -1) throw new Error("無効な形式");
-      const imported = JSON.parse(input.substring(start, end + 1));
-      if (Array.isArray(imported)) {
-        imported.forEach(old => {
-          if (!mealLogs.some(cur => (cur.id === old.id))) mealLogs.push(old);
-        });
-        mealLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
-        localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
-        updateUI();
-        alert("復元完了！");
-        document.getElementById('transferArea').value = "";
-      }
-    } catch (e) { alert("失敗: データの形式を確認してください"); }
   }
 </script>
 </body>
