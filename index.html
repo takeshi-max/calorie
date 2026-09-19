@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>🥗 AI カロリーチェッカー Pro (全データ復元版)</title>
+  <title>🥗 AI カロリーチェッカー Pro</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f2f2f7; margin: 0; padding: 20px; color: #1c1c1e; }
@@ -11,9 +11,11 @@
     h1 { font-size: 22px; margin: 0 0 20px; text-align: center; }
     input, select, textarea { width: 100%; padding: 12px; margin-bottom: 16px; border-radius: 12px; border: 1px solid #e5e5ea; box-sizing: border-box; font-size: 16px; background: #f9f9f9; outline: none; }
     button { width: 100%; padding: 16px; background: #34c759; color: white; border: none; border-radius: 14px; font-weight: bold; cursor: pointer; }
+    button:disabled { background: #ccc; }
     .chart-container { width: 100%; height: 250px; }
     .log-item { background: white; padding: 14px; border-radius: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e5e5ea; }
     .transfer-box { background: #fff; border: 2px dashed #34c759; padding: 15px; border-radius: 12px; }
+    #preview { width: 100%; border-radius: 12px; margin-bottom: 15px; display: none; }
   </style>
 </head>
 <body>
@@ -23,8 +25,13 @@
     <input type="password" id="apiKey" placeholder="Gemini API Key" />
     <label style="font-size:12px; color:#888;">食べた日付</label>
     <input type="date" id="recordDate" />
+    
+    <!-- 修正点：プレビュー画像を表示する要素を追加 -->
+    <img id="preview">
+    
     <input type="file" id="imageInput" accept="image/*" onchange="handleImageSelect(event)" />
     <button id="analyzeBtn" onclick="startAnalysis()" disabled>解析して保存</button>
+    
     <div id="resultBox" style="display:none; margin-top:15px; text-align:center; background:#f2fbf0; padding:10px; border-radius:10px;">
         <div id="resDishName" style="font-weight:bold;"></div>
         <div style="font-size:24px; color:#34c759; font-weight:bold;"><span id="resCalories">0</span> kcal</div>
@@ -45,10 +52,9 @@
     <div id="logList"></div>
   </div>
 
-  <!-- 🆘 最強復元窓口 -->
   <div class="card transfer-box">
-    <div style="font-weight:bold; font-size:14px; color:#34c759; margin-bottom:10px;">📲 データの強力復元（全データ合体）</div>
-    <textarea id="transferArea" rows="3" placeholder="コピーした文字をここに貼り付け"></textarea>
+    <div style="font-weight:bold; font-size:14px; color:#34c759; margin-bottom:10px;">📲 データの強力復元</div>
+    <textarea id="transferArea" rows="3" placeholder="ここにデータを貼り付け"></textarea>
     <button style="background:#0284c7;" onclick="importData()">データを復元する</button>
   </div>
 
@@ -66,60 +72,30 @@
     updateUI();
   };
 
-  // --- 🛠️ どんな形式でも復元する最強の掃除ロジック ---
-  function importData() {
-    let input = document.getElementById('transferArea').value.trim();
-    if (!input) return alert("文字を貼り付けてください");
-
-    try {
-      // 1. 最初と最後の余計な引用符（"）をすべて削ぎ落とす
-      input = input.replace(/^"/, '').replace(/"$/, '').replace(/\\"/g, '"');
-
-      // 2. さらに [ ] の外側に文字があれば切り取る
-      const start = input.indexOf('[');
-      const end = input.lastIndexOf(']');
-      if (start === -1 || end === -1) throw new Error("有効なデータが見つかりません");
-      const cleanJson = input.substring(start, end + 1);
-
-      // 3. 解析
-      const imported = JSON.parse(cleanJson);
-
-      if (Array.isArray(imported)) {
-        if (confirm(`${imported.length}件のデータを復元しますか？`)) {
-          // 既存データと合体（IDが重複しているものは除く）
-          imported.forEach(old => {
-            if (!mealLogs.some(cur => (cur.id === old.id) || (cur.date === old.date && cur.dishName === old.dishName))) {
-              mealLogs.push(old);
-            }
-          });
-          mealLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
-          localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
-          updateUI();
-          alert("復元成功！すべての過去データが合体しました。");
-          document.getElementById('transferArea').value = "";
-        }
-      }
-    } catch (e) {
-      alert("データの解析に失敗しました。コピーが漏れている可能性があります。もう一度コピーし直してみてください。");
-    }
-  }
-
   function handleImageSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
+    
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const max = 800;
+        const max = 800; 
         let w = img.width, h = img.height;
         if (w > h) { if (w > max) { h *= max / w; w = max; } } else { if (h > max) { w *= max / h; h = max; } }
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        
+        // 画像データを保存
         base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-        document.getElementById('preview').src = canvas.toDataURL('image/jpeg');
-        document.getElementById('preview').style.display = 'block';
+        
+        // 修正点：プレビュー要素が存在することを確認してから表示
+        const previewEl = document.getElementById('preview');
+        if (previewEl) {
+          previewEl.src = canvas.toDataURL('image/jpeg');
+          previewEl.style.display = 'block';
+        }
         document.getElementById('analyzeBtn').disabled = false;
       };
       img.src = e.target.result;
@@ -129,17 +105,28 @@
 
   async function startAnalysis() {
     const apiKey = document.getElementById('apiKey').value.trim();
-    if (!apiKey) return alert("APIキー入力");
+    if (!apiKey) return alert("APIキーを入力してください");
+    
+    // APIキーを保存
+    localStorage.setItem('calorie_key_v2026', apiKey);
+
     const btn = document.getElementById('analyzeBtn');
+    btn.innerText = "解析中...";
     btn.disabled = true;
 
     try {
+      // モデル自動探査（執念のロジック）
       const mRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
       const mData = await mRes.json();
-      const models = mData.models.filter(m => m.supportedGenerationMethods.includes("generateContent")).sort((a,b)=>b.name.localeCompare(a.name));
-      const modelName = models.find(m => m.name.includes("flash"))?.name || models[0].name;
+      // gemini-1.5-flashを最優先で探す
+      const models = mData.models.filter(m => m.supportedGenerationMethods.includes("generateContent"));
+      const modelName = models.find(m => m.name.includes("1.5-flash"))?.name || 
+                        models.find(m => m.name.includes("flash"))?.name || 
+                        models[0].name;
 
-      const prompt = `食事分析。JSON形式{"dishName":"名前","calories":数値,"protein":数値,"fat":数値,"carbs":数値}`;
+      const prompt = `写真の食事を分析し、カロリーと栄養素を推定してJSONで返してください。
+      形式: {"dishName":"料理名","calories":数値,"protein":数値,"fat":数値,"carbs":数値}`;
+
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -148,21 +135,38 @@
           generationConfig: { responseMimeType: "application/json" }
         })
       });
+
       const data = await res.json();
-      if (res.ok) {
-        const result = JSON.parse(data.candidates[0].content.parts[0].text.match(/\{.*\}/s)[0]);
-        document.getElementById('resDishName').textContent = result.dishName;
-        document.getElementById('resCalories').textContent = result.calories;
-        document.getElementById('resultBox').style.display = 'block';
-        mealLogs.push({ id: Date.now(), date: document.getElementById('recordDate').value, ...result });
-        mealLogs.sort((a,b) => new Date(b.date) - new Date(a.date));
-        localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
-        updateUI();
-      }
-    } catch (err) { alert("解析失敗: " + err.message); }
-    finally { btn.disabled = false; }
+      if (!res.ok) throw new Error(data.error?.message || "APIエラー");
+
+      const rawText = data.candidates[0].content.parts[0].text;
+      const result = JSON.parse(rawText.match(/\{.*\}/s)[0]);
+
+      // UI更新
+      document.getElementById('resDishName').textContent = result.dishName;
+      document.getElementById('resCalories').textContent = result.calories;
+      document.getElementById('resultBox').style.display = 'block';
+
+      // ログ保存
+      mealLogs.push({ 
+        id: Date.now(), 
+        date: document.getElementById('recordDate').value, 
+        ...result 
+      });
+      mealLogs.sort((a,b) => new Date(b.date) - new Date(a.date));
+      localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
+      updateUI();
+      
+      btn.innerText = "解析完了！";
+    } catch (err) { 
+      alert("解析失敗: " + err.message); 
+      btn.innerText = "解析して保存";
+    } finally { 
+      btn.disabled = false; 
+    }
   }
 
+  // --- 以下、ログ表示・グラフ・復元ロジック（変更なし） ---
   function updateUI() {
     const month = document.getElementById('monthPicker').value;
     const list = document.getElementById('logList');
@@ -173,7 +177,11 @@
       monthSum += Number(log.calories);
       const div = document.createElement('div');
       div.className = 'log-item';
-      div.innerHTML = `<div><b>${log.dishName}</b><br><small>${log.date}</small></div><div style="display:flex; align-items:center; gap:10px;"><b>${log.calories} kcal</b><button onclick="deleteLog(${log.id})" style="background:none;border:none;color:#ccc;">✕</button></div>`;
+      div.innerHTML = `<div><b>${log.dishName}</b><br><small>${log.date}</small></div>
+                       <div style="display:flex; align-items:center; gap:10px;">
+                         <b>${log.calories} kcal</b>
+                         <button onclick="deleteLog(${log.id})" style="background:none;border:none;color:#ccc;cursor:pointer;">✕</button>
+                       </div>`;
       list.appendChild(div);
     });
     document.getElementById('monthTotal').textContent = `${monthSum} kcal`;
@@ -181,7 +189,11 @@
   }
 
   function deleteLog(id) {
-    if (confirm("削除?")) { mealLogs = mealLogs.filter(l => l.id !== id); localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs)); updateUI(); }
+    if (confirm("この記録を削除しますか？")) { 
+      mealLogs = mealLogs.filter(l => l.id !== id); 
+      localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs)); 
+      updateUI(); 
+    }
   }
 
   function renderChart(monthStr, logs) {
@@ -195,10 +207,32 @@
     const ctx = document.getElementById('monthlyChart').getContext('2d');
     const data = {
       labels: Array.from({length: days}, (_, i) => i + 1),
-      datasets: [{ data: dailyData, backgroundColor: '#34c759', borderRadius: 5 }]
+      datasets: [{ label: 'kcal', data: dailyData, backgroundColor: '#34c759', borderRadius: 5 }]
     };
     if (calorieChart) { calorieChart.data = data; calorieChart.update(); }
     else { calorieChart = new Chart(ctx, { type: 'bar', data: data, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } }); }
+  }
+
+  function importData() {
+    let input = document.getElementById('transferArea').value.trim();
+    if (!input) return alert("データを貼り付けてください");
+    try {
+      input = input.replace(/^"/, '').replace(/"$/, '').replace(/\\"/g, '"');
+      const start = input.indexOf('[');
+      const end = input.lastIndexOf(']');
+      if (start === -1 || end === -1) throw new Error("無効な形式");
+      const imported = JSON.parse(input.substring(start, end + 1));
+      if (Array.isArray(imported)) {
+        imported.forEach(old => {
+          if (!mealLogs.some(cur => (cur.id === old.id))) mealLogs.push(old);
+        });
+        mealLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
+        localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
+        updateUI();
+        alert("復元完了！");
+        document.getElementById('transferArea').value = "";
+      }
+    } catch (e) { alert("失敗: データの形式を確認してください"); }
   }
 </script>
 </body>
