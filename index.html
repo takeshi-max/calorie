@@ -3,128 +3,130 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>🥗 AI カロリーチェッカー Pro</title>
+  <title>🥗 AI カロリーチェッカー Pro (復元強化版)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f2f2f7; margin: 0; padding: 20px; color: #1c1c1e; }
     .card { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #e5e5ea; }
-    h1 { font-size: 22px; margin: 0 0 20px; text-align: center; color: #1c1c1e; }
-    label { font-size: 13px; font-weight: bold; color: #8e8e93; margin-bottom: 6px; display: block; }
-    
+    h1 { font-size: 22px; margin: 0 0 20px; text-align: center; }
     input[type="text"], input[type="password"], input[type="date"], input[type="month"], textarea { 
       width: 100%; padding: 12px; margin-bottom: 16px; border-radius: 12px; border: 1px solid #e5e5ea; box-sizing: border-box; font-size: 16px; background: #f9f9f9; outline: none; 
     }
-    input:focus, textarea:focus { border-color: #34c759; background: #fff; }
-    
     button { width: 100%; padding: 16px; background: #34c759; color: white; border: none; border-radius: 14px; font-size: 17px; font-weight: bold; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 0 #248a3d; margin-bottom: 10px; }
     button:active { transform: translateY(4px); box-shadow: none; }
-    button:disabled { background: #aeaeb2; box-shadow: none; cursor: not-allowed; }
-
-    #preview { width: 100%; max-height: 280px; object-fit: cover; border-radius: 16px; display: none; margin-bottom: 16px; }
-    
     .result-box { background: #f2fbf0; border: 2px solid #34c759; border-radius: 16px; padding: 16px; margin-top: 16px; display: none; }
     .calorie-large { font-size: 36px; font-weight: 900; color: #34c759; text-align: center; margin: 10px 0; }
-    .macros { display: flex; justify-content: space-around; background: white; padding: 12px; border-radius: 10px; font-size: 12px; }
-
     .chart-container { width: 100%; height: 250px; }
-    
     .log-list { list-style: none; padding: 0; margin-top: 10px; }
     .log-item { background: white; padding: 14px; border-radius: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e5e5ea; }
-    .del-btn { background: #ff3b30; color: white; border: none; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; box-shadow: none; width: auto; }
-    
-    /* 移行ツール */
-    .transfer-box { background: #f9f9f9; border: 2px dashed #aeaeb2; padding: 15px; border-radius: 12px; margin-top: 10px; }
-    .transfer-btn { background: #444; font-size: 12px; padding: 10px; box-shadow: 0 3px 0 #222; }
+    .del-btn { background: #ff3b30; color: white; border: none; border-radius: 8px; padding: 6px 10px; font-size: 12px; width:auto; }
+    .transfer-box { background: #fff; border: 2px dashed #34c759; padding: 15px; border-radius: 12px; margin-top: 10px; }
   </style>
 </head>
 <body>
 
   <div class="card">
     <h1>🥗 AI カロリーチェッカー Pro</h1>
-    <input type="password" id="apiKey" placeholder="Gemini API Keyを入力" />
-    <label>食べた日付</label>
+    <input type="password" id="apiKey" placeholder="Gemini API Key" />
+    <label style="font-size:12px; color:#888;">食べた日付</label>
     <input type="date" id="recordDate" />
-    <label>食事の写真を選択</label>
     <input type="file" id="imageInput" accept="image/*" onchange="handleImageSelect(event)" />
-    <img id="preview" alt="プレビュー" />
-    <button id="analyzeBtn" onclick="startAnalysis()" disabled>写真を解析して保存する</button>
-    <div id="statusMsg" style="font-size:10px; color:#8e8e93; text-align:center;"></div>
-
+    <img id="preview" style="width:100%; border-radius:12px; display:none; margin-bottom:10px;" />
+    <button id="analyzeBtn" onclick="startAnalysis()" disabled>解析して保存</button>
     <div id="resultBox" class="result-box">
       <div id="resDishName" style="font-weight:bold; text-align:center;"></div>
       <div class="calorie-large"><span id="resCalories">0</span> kcal</div>
-      <div class="macros">
-        <span>💪 P: <b id="resP">0</b>g</span>
-        <span>🥑 F: <b id="resF">0</b>g</span>
-        <span>🍚 C: <b id="resC">0</b>g</span>
-      </div>
     </div>
   </div>
 
   <div class="card">
-    <div style="font-weight:bold; margin-bottom:12px; text-align:center;">📊 月間摂取カロリー推移</div>
+    <div style="font-weight:bold; margin-bottom:12px; text-align:center;">📊 月間推移</div>
     <input type="month" id="monthPicker" onchange="updateUI()" />
     <div class="chart-container"><canvas id="monthlyChart"></canvas></div>
   </div>
 
   <div class="card">
-    <div style="font-weight:bold; margin-bottom:12px; display:flex; justify-content:space-between;">
+    <div style="font-weight:bold; display:flex; justify-content:space-between;">
       <span>📋 食事ログ</span>
-      <span id="monthTotal" style="color:#34c759;">合計: 0 kcal</span>
+      <span id="monthTotal" style="color:#34c759;">0 kcal</span>
     </div>
     <div id="logList" class="log-list"></div>
   </div>
 
-  <!-- 📲 機種変更・データ移行ツール -->
+  <!-- 🆘 強力復元ツール -->
   <div class="card transfer-box">
-    <div style="font-weight:bold; font-size:14px; margin-bottom:10px;">📲 データのバックアップ・移行</div>
-    <button class="transfer-btn" onclick="exportData()">1. 全データをコピー（保存用）</button>
-    <textarea id="transferArea" rows="3" placeholder="コードをここに貼り付け"></textarea>
-    <button class="transfer-btn" style="background:#0284c7; box-shadow:0 3px 0 #003d5c;" onclick="importData()">2. データを復元する</button>
+    <div style="font-weight:bold; font-size:14px; color:#34c759; margin-bottom:10px;">📲 データの強力復元（引っ越し）</div>
+    <textarea id="transferArea" rows="3" placeholder="吸い出した文字をここに貼り付け"></textarea>
+    <button style="background:#0284c7; box-shadow: 0 4px 0 #014c73;" onclick="importData()">データを復元する</button>
+    <button style="background:#888; box-shadow: 0 4px 0 #555; font-size:12px;" onclick="exportData()">現在のデータをバックアップ</button>
   </div>
 
 <script>
   let mealLogs = [];
   let calorieChart = null;
   let base64Image = '';
-  let imageMimeType = '';
 
   window.onload = () => {
-    // 1. 基本設定
     const today = new Date();
     document.getElementById('recordDate').value = today.toISOString().split('T')[0];
     document.getElementById('monthPicker').value = today.toISOString().slice(0, 7);
     document.getElementById('apiKey').value = localStorage.getItem('calorie_key_v2026') || '';
-    document.getElementById('apiKey').addEventListener('change', (e) => localStorage.setItem('calorie_key_v2026', e.target.value.trim()));
-    
-    // 2. 【最重要】データの引き継ぎロジック
-    // ① Pro版の名前
-    let saved = localStorage.getItem('meal_logs_v2026');
-    // ② 当初の名前 (meal_logs) をチェック
-    let oldSaved = localStorage.getItem('meal_logs');
-
-    if (saved) {
-      mealLogs = JSON.parse(saved);
-    }
-
-    if (oldSaved) {
-      const oldData = JSON.parse(oldSaved);
-      // まだ統合していなければ、新しいリストに追加する
-      oldData.forEach(oldItem => {
-        if (!mealLogs.some(newItem => newItem.id === oldItem.id)) {
-          mealLogs.push(oldItem);
-        }
-      });
-      // 統合後、日付順に並び替え
-      mealLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
-      // 新しい保存先に保存
-      localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
-    }
-    
+    mealLogs = JSON.parse(localStorage.getItem('meal_logs_v2026')) || [];
     updateUI();
   };
 
-  // --- 以降、解析・UI・移行ロジック（前回の成功版を維持） ---
+  // --- 🛠️ ここを強力に修正しました ---
+  function importData() {
+    let rawInput = document.getElementById('transferArea').value.trim();
+    if (!rawInput) return alert("文字を貼り付けてください");
+
+    try {
+      // 1. もし文字が引用符で囲まれていたら外す（iPhoneのprompt対策）
+      if (rawInput.startsWith('"') && rawInput.endsWith('"')) {
+        rawInput = rawInput.substring(1, rawInput.length - 1).replace(/\\"/g, '"');
+      }
+
+      // 2. 解析
+      let imported = JSON.parse(rawInput);
+
+      // 3. もし中身がさらに文字列として重なっていたら再解析
+      if (typeof imported === 'string') {
+        imported = JSON.parse(imported);
+      }
+
+      // 4. 配列であることを確認して結合
+      if (Array.isArray(imported)) {
+        if (confirm(`過去のデータ（${imported.length}件）が見つかりました。現在の履歴と合体させますか？`)) {
+          // 重複を避けて合体
+          imported.forEach(oldItem => {
+            if (!mealLogs.some(newItem => newItem.id === oldItem.id)) {
+              mealLogs.push(oldItem);
+            }
+          });
+          mealLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
+          localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
+          updateUI();
+          alert("復元に成功しました！グラフを確認してください。");
+          document.getElementById('transferArea').value = "";
+        }
+      } else {
+        alert("データの形式が合いません。配列データが必要です。");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("エラー：文字が不完全か、正しくコピーできていない可能性があります。もう一度Netlifyでコピーし直してみてください。");
+    }
+  }
+
+  function exportData() {
+    const dataStr = JSON.stringify(mealLogs);
+    const area = document.getElementById('transferArea');
+    area.value = dataStr;
+    area.select();
+    document.execCommand('copy');
+    alert("コピーしました");
+  }
+
   function handleImageSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -139,7 +141,6 @@
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
         base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-        imageMimeType = 'image/jpeg';
         document.getElementById('preview').src = canvas.toDataURL('image/jpeg');
         document.getElementById('preview').style.display = 'block';
         document.getElementById('analyzeBtn').disabled = false;
@@ -151,9 +152,8 @@
 
   async function startAnalysis() {
     const apiKey = document.getElementById('apiKey').value.trim();
-    if (!apiKey) return alert("APIキーを入力してください");
+    if (!apiKey) return alert("APIキーを入力");
     const btn = document.getElementById('analyzeBtn');
-    const status = document.getElementById('statusMsg');
     btn.disabled = true;
 
     try {
@@ -162,35 +162,28 @@
       const models = mData.models.filter(m => m.supportedGenerationMethods.includes("generateContent")).sort((a,b)=>b.name.localeCompare(a.name));
       const modelName = localStorage.getItem('working_model_calorie') || models[0].name;
 
-      const prompt = `画像内の食事を詳しく分析しJSONで回答してください。{"dishName":"料理名","calories":推定カロリー(数値),"protein":数値,"fat":数値,"carbs":数値}`;
-      
+      const prompt = `食事分析を行いJSONで。{"dishName":"料理名","calories":数値,"protein":数値,"fat":数値,"carbs":数値}`;
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: imageMimeType, data: base64Image } }] }],
+          contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "image/jpeg", data: base64Image } }] }],
           generationConfig: { responseMimeType: "application/json" }
         })
       });
-
-      const data = await responseData = await res.json();
+      const data = await res.json();
       if (res.ok) {
         const result = JSON.parse(data.candidates[0].content.parts[0].text.match(/\{.*\}/s)[0]);
         finalizeResult(result);
         localStorage.setItem('working_model_calorie', modelName);
       }
     } catch (err) { alert("エラー: " + err.message); }
-    finally { btn.disabled = false; status.textContent = ""; }
+    finally { btn.disabled = false; }
   }
 
   function finalizeResult(res) {
     document.getElementById('resDishName').textContent = res.dishName;
     document.getElementById('resCalories').textContent = res.calories;
-    document.getElementById('resP').textContent = res.protein;
-    document.getElementById('resF').textContent = res.fat;
-    document.getElementById('resC').textContent = res.carbs;
-    document.getElementById('resultBox').style.display = 'block';
-
     const date = document.getElementById('recordDate').value;
     mealLogs.push({ id: Date.now(), date, ...res });
     mealLogs.sort((a,b) => new Date(b.date) - new Date(a.date));
@@ -216,7 +209,7 @@
   }
 
   function deleteLog(id) {
-    if (!confirm("削除しますか？")) return;
+    if (!confirm("削除?")) return;
     mealLogs = mealLogs.filter(l => l.id !== id);
     localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
     updateUI();
@@ -237,27 +230,6 @@
     };
     if (calorieChart) { calorieChart.data = data; calorieChart.update(); }
     else { calorieChart = new Chart(ctx, { type: 'bar', data: data, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } }); }
-  }
-
-  function exportData() {
-    const dataStr = JSON.stringify(mealLogs);
-    const area = document.getElementById('transferArea');
-    area.value = dataStr;
-    area.select(); document.execCommand('copy');
-    alert("全データをコピーしました！メモ帳等に保存してください。");
-  }
-
-  function importData() {
-    const dataStr = document.getElementById('transferArea').value.trim();
-    if (!dataStr) return;
-    try {
-      const imported = JSON.parse(dataStr);
-      if (confirm("データを上書き復元しますか？")) {
-        mealLogs = imported;
-        localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
-        updateUI(); alert("復元完了！");
-      }
-    } catch (e) { alert("形式エラー"); }
   }
 </script>
 </body>
