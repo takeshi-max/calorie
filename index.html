@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>🥗 AIカロリー計算 Pro (データ移行版)</title>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { font-family: sans-serif; background: #0f172a; color: white; margin: 0; padding: 20px; display: flex; justify-content: center; }
+    .container { max-width: 500px; width: 100%; display: flex; flex-direction: column; gap: 15px; }
+    .card { background: #1e293b; border-radius: 16px; padding: 20px; border: 1px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    h2 { font-size: 20px; margin: 0 0 15px; text-align: center; color: #38bdf8; }
+    input, textarea { width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 10px; border: 1px solid #475569; background: #0f172a; color: white; font-size: 15px; outline: none; }
+    .total-box { text-align: center; padding: 15px; background: #0284c7; border-radius: 12px; margin-bottom: 10px; }
+    .total-val { font-size: 32px; font-weight: bold; }
+    button { width: 100%; padding: 16px; background: #0284c7; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px; transition: 0.2s; box-shadow: 0 4px 0 #0369a1; }
+    button:active { transform: translateY(2px); box-shadow: none; }
+    .history-item { background: #0f172a; padding: 12px; border-radius: 10px; border-left: 4px solid #38bdf8; position: relative; margin-bottom: 10px; }
+    .delete-btn { position: absolute; top: 10px; right: 10px; color: #ef4444; background: none; border: none; cursor: pointer; }
+    
+    /* 移行ツール用 */
+    .transfer-area { background: #000; padding: 10px; border-radius: 8px; margin-top: 20px; border: 1px solid #38bdf8; }
+    .transfer-btn { background: #475569; padding: 8px; font-size: 11px; margin-bottom: 10px; box-shadow: 0 2px 0 #1e293b; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="card">
+    <h2>🥗 AIカロリー計算 Pro</h2>
+    <input type="password" id="apiKey" placeholder="Gemini API Key" />
+    <div class="total-box">
+      <div class="total-val"><span id="totalCal">0</span> <span style="font-size: 16px;">kcal</span></div>
+    </div>
+    <textarea id="mealInput" rows="3" placeholder="食べたものを入力..."></textarea>
+    <button id="calcBtn" onclick="analyzeMeal()">AIでカロリー推定</button>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <div style="font-size: 14px; font-weight:bold; color: #38bdf8;">📝 食事履歴</div>
+      <button onclick="clearHistory()" style="width:auto; padding:5px 10px; background:#475569; font-size:10px; box-shadow:none;">リセット</button>
+    </div>
+    <div id="history"></div>
+  </div>
+
+  <!-- データ移行ツール -->
+  <div class="card transfer-area">
+    <div style="font-size: 12px; font-weight: bold; color: #38bdf8; margin-bottom: 10px;">📲 データ移行ツール</div>
+    <button class="transfer-btn" onclick="exportData()">1. iPhoneからデータをコピーする</button>
+    <textarea id="transferCode" rows="2" style="font-size: 10px;" placeholder="ここにコードを貼り付け"></textarea>
+    <button class="transfer-btn" style="background:#10b981;" onclick="importData()">2. PCにデータを復元する</button>
+  </div>
+</div>
+
+<script>
+  let mealHistory = [];
+
+  window.onload = () => {
+    document.getElementById('apiKey').value = localStorage.getItem('calorie_pro_key') || '';
+    // 複数の保存名（Key）を探して引き継ぐ
+    const saved = localStorage.getItem('calorie_history_data') || localStorage.getItem('mealHistory') || localStorage.getItem('meal_logs');
+    if (saved) {
+      mealHistory = JSON.parse(saved);
+      renderHistory();
+    }
+  };
+
+  function renderHistory() {
+    const container = document.getElementById('history');
+    const totalEl = document.getElementById('totalCal');
+    container.innerHTML = '';
+    let total = 0;
+    mealHistory.forEach((item, index) => {
+      total += item.calories;
+      const div = document.createElement('div');
+      div.className = 'history-item';
+      div.innerHTML = `<b>${item.name}</b><br>${item.calories} kcal <button class="delete-btn" onclick="deleteItem(${index})">✕</button>`;
+      container.prepend(div);
+    });
+    totalEl.innerText = total;
+    localStorage.setItem('calorie_history_data', JSON.stringify(mealHistory));
+  }
+
+  function deleteItem(i) { mealHistory.splice(i, 1); renderHistory(); }
+  function clearHistory() { if (confirm("削除しますか？")) { mealHistory = []; renderHistory(); } }
+
+  // データ移行：書き出し
+  function exportData() {
+    const data = JSON.stringify(mealHistory);
+    document.getElementById('transferCode').value = data;
+    navigator.clipboard.writeText(data);
+    alert("iPhoneの履歴をコピーしました！PCに送って貼り付けてください。");
+  }
+
+  // データ移行：読み込み
+  function importData() {
+    const code = document.getElementById('transferCode').value.trim();
+    if (!code) return alert("貼り付け欄が空です");
+    try {
+      mealHistory = JSON.parse(code);
+      renderHistory();
+      alert("データの復元に成功しました！");
+    } catch (e) { alert("無効なコードです"); }
+  }
+
+  async function analyzeMeal() {
+    const apiKey = document.getElementById('apiKey').value.trim();
+    const mealText = document.getElementById('mealInput').value.trim();
+    if (!apiKey || !mealText) return alert("未入力");
+
+    const prompt = `食事内容「${mealText}」のカロリーを推定してJSONで返して。{"name":"料理名","calories":数字}`;
+
+    try {
+      const mRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      const mData = await mRes.json();
+      const models = mData.models.filter(m => m.supportedGenerationMethods.includes("generateContent")).sort((a,b)=>b.name.localeCompare(a.name));
+      const model = models[0].name;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } })
+      });
+
+      const data = await response.json();
+      const result = JSON.parse(data.candidates[0].content.parts[0].text);
+      mealHistory.push({ name: result.name, calories: result.calories });
+      renderHistory();
+      document.getElementById('mealInput').value = '';
+      localStorage.setItem('calorie_pro_key', apiKey);
+    } catch (e) { alert("失敗: " + e.message); }
+  }
+</script>
+</body>
+</html>
