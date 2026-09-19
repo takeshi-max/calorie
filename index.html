@@ -3,18 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>🥗 AI カロリーチェッカー Pro (2026版)</title>
+  <title>🥗 AI カロリーチェッカー Pro (執念のリトライ版)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f2f2f7; margin: 0; padding: 20px; color: #1c1c1e; }
     .card { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #e5e5ea; }
     h1 { font-size: 22px; margin: 0 0 20px; text-align: center; }
     input, select, textarea { width: 100%; padding: 12px; margin-bottom: 16px; border-radius: 12px; border: 1px solid #e5e5ea; box-sizing: border-box; font-size: 16px; background: #f9f9f9; outline: none; }
-    button { width: 100%; padding: 16px; background: #34c759; color: white; border: none; border-radius: 14px; font-weight: bold; cursor: pointer; }
+    button { width: 100%; padding: 16px; background: #34c759; color: white; border: none; border-radius: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; }
     button:disabled { background: #ccc; }
     .chart-container { width: 100%; height: 250px; }
     .log-item { background: white; padding: 14px; border-radius: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e5e5ea; }
     #preview { width: 100%; border-radius: 12px; margin-bottom: 15px; display: none; border: 1px solid #eee; }
+    #statusInfo { font-size: 12px; color: #888; margin-top: 5px; text-align: center; min-height: 1.5em; }
   </style>
 </head>
 <body>
@@ -29,6 +30,7 @@
     
     <input type="file" id="imageInput" accept="image/*" onchange="handleImageSelect(event)" />
     <button id="analyzeBtn" onclick="startAnalysis()" disabled>解析して保存</button>
+    <div id="statusInfo"></div>
     
     <div id="resultBox" style="display:none; margin-top:15px; text-align:center; background:#f2fbf0; padding:10px; border-radius:10px;">
         <div id="resDishName" style="font-weight:bold;"></div>
@@ -94,63 +96,83 @@
     localStorage.setItem('calorie_key_v2026', apiKey);
 
     const btn = document.getElementById('analyzeBtn');
-    btn.innerText = "最新モデルを探索中...";
+    const status = document.getElementById('statusInfo');
     btn.disabled = true;
 
     try {
-      // --- 強化版：執念のモデル探査ロジック ---
+      // 1. モデルリストを取得
+      status.innerText = "利用可能なモデルを確認中...";
       const mRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
       const mData = await mRes.json();
       
-      // 1. generateContentに対応しているモデルを抽出
-      let models = mData.models.filter(m => m.supportedGenerationMethods.includes("generateContent"));
-      
-      // 2. バージョン番号（3.6 > 2.5など）を考慮して降順にソート
-      models.sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true, sensitivity: 'base' }));
+      let models = mData.models
+        .filter(m => m.supportedGenerationMethods.includes("generateContent"))
+        .sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true }));
 
-      // 3. 「flash」が含まれる中で最も新しいものを選択
-      const latestFlash = models.find(m => m.name.includes("flash"));
-      const modelName = latestFlash ? latestFlash.name : models[0].name;
-      
-      console.log("使用モデル:", modelName);
-      btn.innerText = "解析中...";
+      // 候補モデルを絞り込み（Flashを優先）
+      let candidateModels = [
+        ...models.filter(m => m.name.includes("flash")),
+        ...models.filter(m => !m.name.includes("flash"))
+      ];
 
-      const prompt = `写真の食事を分析し、カロリーと栄養素を推定してJSONで返してください。
-      形式: {"dishName":"料理名","calories":数値,"protein":数値,"fat":数値,"carbs":数値}`;
+      const prompt = `食事分析JSON形式: {"dishName":"名前","calories":数値,"protein":数値,"fat":数値,"carbs":数値}`;
+      let success = false;
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "image/jpeg", data: base64Image } }] }],
-          generationConfig: { responseMimeType: "application/json" }
-        })
-      });
+      // 2. 執念のリトライループ：動くモデルが見つかるまで試す
+      for (let model of candidateModels) {
+        status.innerText = `モデル試行中: ${model.name.split('/').pop()}...`;
+        
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${model.name}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "image/jpeg", data: base64Image } }] }],
+              generationConfig: { responseMimeType: "application/json" }
+            })
+          });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || "APIエラー");
+          const data = await res.json();
+          
+          if (res.ok && data.candidates) {
+            // 成功！
+            const rawText = data.candidates[0].content.parts[0].text;
+            const result = JSON.parse(rawText.match(/\{.*\}/s)[0]);
+            
+            document.getElementById('resDishName').textContent = result.dishName;
+            document.getElementById('resCalories').textContent = result.calories;
+            document.getElementById('resultBox').style.display = 'block';
 
-      const rawText = data.candidates[0].content.parts[0].text;
-      const result = JSON.parse(rawText.match(/\{.*\}/s)[0]);
+            mealLogs.push({ id: Date.now(), date: document.getElementById('recordDate').value, ...result });
+            mealLogs.sort((a,b) => new Date(b.date) - new Date(a.date));
+            localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
+            updateUI();
+            
+            success = true;
+            status.innerText = `解析成功 (${model.name.split('/').pop()})`;
+            break; // ループを抜ける
+          } else {
+            console.warn(`モデル ${model.name} は制限によりスキップします。`);
+          }
+        } catch (e) {
+          console.error(`モデル ${model.name} でエラー:`, e);
+        }
+      }
 
-      document.getElementById('resDishName').textContent = result.dishName;
-      document.getElementById('resCalories').textContent = result.calories;
-      document.getElementById('resultBox').style.display = 'block';
+      if (!success) {
+        throw new Error("すべての利用可能なモデルが制限に達しているか、APIキーが無効です。しばらく待ってからお試しください。");
+      }
 
-      mealLogs.push({ id: Date.now(), date: document.getElementById('recordDate').value, ...result });
-      mealLogs.sort((a,b) => new Date(b.date) - new Date(a.date));
-      localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
-      updateUI();
-      
-      btn.innerText = "解析完了！";
     } catch (err) { 
-      alert("解析失敗: " + err.message); 
-      btn.innerText = "解析して保存";
+      alert("全モデル試行失敗: " + err.message); 
+      status.innerText = "エラーが発生しました。";
     } finally { 
       btn.disabled = false; 
+      btn.innerText = "解析して保存";
     }
   }
 
+  // --- UI・グラフ処理（変更なし） ---
   function updateUI() {
     const month = document.getElementById('monthPicker').value;
     const list = document.getElementById('logList');
