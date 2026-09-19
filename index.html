@@ -11,54 +11,48 @@
     h1 { font-size: 22px; margin: 0 0 20px; text-align: center; color: #1c1c1e; }
     label { font-size: 13px; font-weight: bold; color: #8e8e93; margin-bottom: 6px; display: block; }
     
-    input[type="text"], input[type="password"], input[type="date"], input[type="month"] { 
+    input[type="text"], input[type="password"], input[type="date"], input[type="month"], textarea { 
       width: 100%; padding: 12px; margin-bottom: 16px; border-radius: 12px; border: 1px solid #e5e5ea; box-sizing: border-box; font-size: 16px; background: #f9f9f9; outline: none; 
     }
-    input:focus { border-color: #34c759; background: #fff; }
+    input:focus, textarea:focus { border-color: #34c759; background: #fff; }
     
-    .file-input-wrapper { margin-bottom: 16px; }
-    
-    button { width: 100%; padding: 16px; background: #34c759; color: white; border: none; border-radius: 14px; font-size: 17px; font-weight: bold; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 0 #248a3d; }
+    button { width: 100%; padding: 16px; background: #34c759; color: white; border: none; border-radius: 14px; font-size: 17px; font-weight: bold; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 0 #248a3d; margin-bottom: 10px; }
     button:active { transform: translateY(4px); box-shadow: none; }
     button:disabled { background: #aeaeb2; box-shadow: none; cursor: not-allowed; }
 
-    #preview { width: 100%; max-height: 280px; object-fit: cover; border-radius: 16px; display: none; margin-bottom: 16px; border: 1px solid #e5e5ea; }
+    #preview { width: 100%; max-height: 280px; object-fit: cover; border-radius: 16px; display: none; margin-bottom: 16px; }
     
-    .result-box { background: #f2fbf0; border: 2px solid #34c759; border-radius: 16px; padding: 16px; margin-top: 16px; display: none; animation: fadeIn 0.5s ease; }
+    .result-box { background: #f2fbf0; border: 2px solid #34c759; border-radius: 16px; padding: 16px; margin-top: 16px; display: none; }
     .calorie-large { font-size: 36px; font-weight: 900; color: #34c759; text-align: center; margin: 10px 0; }
     .macros { display: flex; justify-content: space-around; background: white; padding: 12px; border-radius: 10px; font-size: 12px; }
 
-    .chart-container { width: 100%; height: 250px; margin-top: 10px; }
+    .chart-container { width: 100%; height: 250px; }
     
     .log-list { list-style: none; padding: 0; margin-top: 10px; }
     .log-item { background: white; padding: 14px; border-radius: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e5e5ea; }
-    .del-btn { background: #ff3b30; color: white; border: none; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
+    .del-btn { background: #ff3b30; color: white; border: none; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; box-shadow: none; width: auto; }
     
-    .status-msg { font-size: 11px; color: #8e8e93; text-align: center; margin-top: 8px; height: 1.2em; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    /* データ移行エリアの装飾 */
+    .transfer-box { background: #000; color: #34c759; padding: 15px; border-radius: 12px; font-family: monospace; font-size: 12px; margin-top: 10px; border: 1px solid #34c759; }
+    .transfer-btn { background: #444; box-shadow: 0 3px 0 #222; font-size: 12px; padding: 10px; }
   </style>
 </head>
 <body>
 
   <div class="card">
     <h1>🥗 AI カロリーチェッカー</h1>
-    
-    <label>Google Gemini API Key</label>
-    <input type="password" id="apiKey" placeholder="AI StudioのAPIキーを入力" />
-
-    <label>食べた日付（過去分もOK）</label>
+    <input type="password" id="apiKey" placeholder="Gemini API Keyを入力" />
+    <label>食べた日付</label>
     <input type="date" id="recordDate" />
-
     <label>食事の写真を選択</label>
     <input type="file" id="imageInput" accept="image/*" onchange="handleImageSelect(event)" />
     <img id="preview" alt="プレビュー" />
-
     <button id="analyzeBtn" onclick="startAnalysis()" disabled>写真を解析して保存する</button>
-    <div id="statusMsg" class="status-msg"></div>
+    <div id="statusMsg" style="font-size:10px; color:#8e8e93; text-align:center;"></div>
 
     <div id="resultBox" class="result-box">
-      <div id="resDishName" style="font-weight:bold; text-align:center; font-size:18px;"></div>
-      <div class="calorie-large"><span id="resCalories">0</span> <span style="font-size:16px;">kcal</span></div>
+      <div id="resDishName" style="font-weight:bold; text-align:center;"></div>
+      <div class="calorie-large"><span id="resCalories">0</span> kcal</div>
       <div class="macros">
         <span>💪 P: <b id="resP">0</b>g</span>
         <span>🥑 F: <b id="resF">0</b>g</span>
@@ -68,19 +62,27 @@
   </div>
 
   <div class="card">
-    <div style="font-weight:900; margin-bottom:12px; text-align:center; color:#8e8e93;">📊 月間摂取カロリー推移</div>
+    <div style="font-weight:bold; margin-bottom:12px; text-align:center;">📊 月間摂取カロリー推移</div>
     <input type="month" id="monthPicker" onchange="updateUI()" />
-    <div class="chart-container">
-      <canvas id="monthlyChart"></canvas>
-    </div>
+    <div class="chart-container"><canvas id="monthlyChart"></canvas></div>
   </div>
 
   <div class="card">
     <div style="font-weight:bold; margin-bottom:12px; display:flex; justify-content:space-between;">
       <span>📋 食事ログ</span>
-      <span id="monthTotal" style="color:#34c759;">月間合計: 0 kcal</span>
+      <span id="monthTotal" style="color:#34c759;">合計: 0 kcal</span>
     </div>
     <div id="logList" class="log-list"></div>
+  </div>
+
+  <!-- 📲 機種変更・データ移行ツール -->
+  <div class="card" style="background:#f9f9f9; border: 2px dashed #aeaeb2;">
+    <div style="font-weight:bold; font-size:14px; margin-bottom:10px; color:#3a3a3c;">📲 機種変更・データ移行</div>
+    <p style="font-size:11px; color:#8e8e93; margin-bottom:10px;">現在のデータを文字列として書き出します。新しい端末にこの文字をコピーして貼り付けてください。</p>
+    
+    <button class="transfer-btn" onclick="exportData()">1. データをバックアップ（コピー）</button>
+    <textarea id="transferArea" rows="3" placeholder="ここに移行用コードを貼り付けます"></textarea>
+    <button class="transfer-btn" style="background:#0284c7; box-shadow:0 3px 0 #003d5c;" onclick="importData()">2. データを復元する</button>
   </div>
 
 <script>
@@ -89,20 +91,44 @@
   let calorieChart = null;
   let mealLogs = [];
 
-  // 初期化
   window.onload = () => {
     const today = new Date();
     document.getElementById('recordDate').value = today.toISOString().split('T')[0];
     document.getElementById('monthPicker').value = today.toISOString().slice(0, 7);
-    
     document.getElementById('apiKey').value = localStorage.getItem('calorie_key_v2026') || '';
     document.getElementById('apiKey').addEventListener('change', (e) => localStorage.setItem('calorie_key_v2026', e.target.value.trim()));
     
-    // データの復元
     mealLogs = JSON.parse(localStorage.getItem('meal_logs_v2026')) || [];
     updateUI();
   };
 
+  // --- データ移行ロジック ---
+  function exportData() {
+    const dataStr = JSON.stringify(mealLogs);
+    const area = document.getElementById('transferArea');
+    area.value = dataStr;
+    area.select();
+    document.execCommand('copy');
+    alert("これまでの全データをコピーしました！\nメールやLINEで新しい端末に送り、貼り付けて復元してください。");
+  }
+
+  function importData() {
+    const dataStr = document.getElementById('transferArea').value.trim();
+    if (!dataStr) return alert("移行用の文字を貼り付けてください。");
+    try {
+      const importedLogs = JSON.parse(dataStr);
+      if (confirm("現在のデータが上書きされます。よろしいですか？")) {
+        mealLogs = importedLogs;
+        localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
+        updateUI();
+        alert("データの復元に成功しました！");
+      }
+    } catch (e) {
+      alert("データの形式が正しくありません。コピーした内容をそのまま貼り付けてください。");
+    }
+  }
+
+  // --- 写真解析ロジック ---
   function handleImageSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -113,7 +139,7 @@
         const canvas = document.createElement('canvas');
         const max = 800;
         let w = img.width, h = img.height;
-        if (w > max) { h *= max / w; w = max; }
+        if (w > h) { if (w > max) { h *= max / w; w = max; } } else { if (h > max) { w *= max / h; h = max; } }
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
         base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
@@ -127,51 +153,38 @@
     reader.readAsDataURL(file);
   }
 
-  // --- 【執念のモデル探査ロジック】 ---
   async function startAnalysis() {
     const apiKey = document.getElementById('apiKey').value.trim();
-    if (!apiKey) return alert("APIキーを入力してください");
-    
+    if (!apiKey) return alert("APIキーを入力");
     const btn = document.getElementById('analyzeBtn');
     const status = document.getElementById('statusMsg');
     btn.disabled = true;
-    btn.textContent = "AI解析中...";
 
     try {
       const mRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
       const mData = await mRes.json();
       const models = mData.models.filter(m => m.supportedGenerationMethods.includes("generateContent")).sort((a,b)=>b.name.localeCompare(a.name));
+      const modelName = localStorage.getItem('working_model_calorie') || models[0].name;
+
+      const prompt = `食事分析を行いJSONで回答してください。{"dishName":"料理名","calories":数値,"protein":数値,"fat":数値,"carbs":数値}`;
       
-      const lastModel = localStorage.getItem('working_model_calorie') || models[0].name;
-      const targetModels = [ {name: lastModel}, ...models.filter(m => m.name !== lastModel) ];
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: imageMimeType, data: base64Image } }] }],
+          generationConfig: { responseMimeType: "application/json" }
+        })
+      });
 
-      const prompt = `画像内の食事を分析し、以下のJSON形式でのみ出力してください。
-{"dishName":"料理名","calories":推定カロリー(数値),"protein":たんぱく質g(数値),"fat":脂質g(数値),"carbs":炭水化物g(数値)}`;
-
-      let success = false;
-      for (const m of targetModels) {
-        status.textContent = `試行中: ${m.name.split('/').pop()}...`;
-        try {
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${m.name}:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: imageMimeType, data: base64Image } }] }],
-              generationConfig: { responseMimeType: "application/json" }
-            })
-          });
-          const data = await res.json();
-          if (res.ok) {
-            const result = JSON.parse(data.candidates[0].content.parts[0].text.match(/\{.*\}/s)[0]);
-            finalizeResult(result);
-            localStorage.setItem('working_model_calorie', m.name);
-            success = true; break;
-          }
-        } catch (e) { console.warn(m.name, e); }
+      const data = await res.json();
+      if (res.ok) {
+        const result = JSON.parse(data.candidates[0].content.parts[0].text.match(/\{.*\}/s)[0]);
+        finalizeResult(result);
+        localStorage.setItem('working_model_calorie', modelName);
       }
-      if (!success) alert("現在AIが制限されています。10分ほど待ってください。");
     } catch (err) { alert("エラー: " + err.message); }
-    finally { btn.disabled = false; btn.textContent = "写真を解析して保存する"; status.textContent = ""; }
+    finally { btn.disabled = false; status.textContent = ""; }
   }
 
   function finalizeResult(res) {
@@ -186,7 +199,6 @@
     mealLogs.push({ id: Date.now(), date, ...res });
     mealLogs.sort((a,b) => new Date(b.date) - new Date(a.date));
     localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
-    
     updateUI();
   }
 
@@ -194,26 +206,15 @@
     const month = document.getElementById('monthPicker').value;
     const list = document.getElementById('logList');
     list.innerHTML = '';
-    
     const filtered = mealLogs.filter(l => l.date.startsWith(month));
     let monthSum = 0;
-
-    if (filtered.length === 0) {
-      list.innerHTML = '<div style="text-align:center; color:#8e8e93; font-size:13px;">記録がありません</div>';
-    } else {
-      filtered.forEach(log => {
-        monthSum += Number(log.calories);
-        const div = document.createElement('div');
-        div.className = 'log-item';
-        div.innerHTML = `
-          <div><div style="font-weight:bold;">${log.dishName}</div><div style="font-size:11px; color:#8e8e93;">${log.date}</div></div>
-          <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-weight:bold; color:#34c759;">${log.calories} kcal</span>
-            <button class="del-btn" onclick="deleteLog(${log.id})">✕</button>
-          </div>`;
-        list.appendChild(div);
-      });
-    }
+    filtered.forEach(log => {
+      monthSum += Number(log.calories);
+      const div = document.createElement('div');
+      div.className = 'log-item';
+      div.innerHTML = `<div><b>${log.dishName}</b><br><small>${log.date}</small></div><div style="display:flex; align-items:center; gap:10px;"><b>${log.calories} kcal</b><button class="del-btn" onclick="deleteLog(${log.id})">✕</button></div>`;
+      list.appendChild(div);
+    });
     document.getElementById('monthTotal').textContent = `月間合計: ${monthSum} kcal`;
     renderChart(month, filtered);
   }
@@ -229,28 +230,17 @@
     const [y, m] = monthStr.split('-').map(Number);
     const days = new Date(y, m, 0).getDate();
     const dailyData = Array(days).fill(0);
-    
     logs.forEach(l => {
       const d = parseInt(l.date.split('-')[2], 10);
       dailyData[d-1] += Number(l.calories);
     });
-
     const ctx = document.getElementById('monthlyChart').getContext('2d');
     const data = {
       labels: Array.from({length: days}, (_, i) => i + 1),
       datasets: [{ data: dailyData, backgroundColor: '#34c759', borderRadius: 5 }]
     };
-
-    if (calorieChart) {
-      calorieChart.data = data;
-      calorieChart.update();
-    } else {
-      calorieChart = new Chart(ctx, {
-        type: 'bar',
-        data: data,
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-      });
-    }
+    if (calorieChart) { calorieChart.data = data; calorieChart.update(); }
+    else { calorieChart = new Chart(ctx, { type: 'bar', data: data, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } }); }
   }
 </script>
 </body>
