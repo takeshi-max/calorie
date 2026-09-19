@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>🥗 AI カロリーチェッカー Pro (執念のリトライ版)</title>
+  <title>🥗 AI カロリーチェッカー Pro (執念の完全版)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f2f2f7; margin: 0; padding: 20px; color: #1c1c1e; }
@@ -11,11 +11,15 @@
     h1 { font-size: 22px; margin: 0 0 20px; text-align: center; }
     input, select, textarea { width: 100%; padding: 12px; margin-bottom: 16px; border-radius: 12px; border: 1px solid #e5e5ea; box-sizing: border-box; font-size: 16px; background: #f9f9f9; outline: none; }
     button { width: 100%; padding: 16px; background: #34c759; color: white; border: none; border-radius: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-    button:disabled { background: #ccc; }
-    .chart-container { width: 100%; height: 250px; }
+    button:active { opacity: 0.7; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    .chart-container { width: 100%; height: 220px; }
     .log-item { background: white; padding: 14px; border-radius: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e5e5ea; }
     #preview { width: 100%; border-radius: 12px; margin-bottom: 15px; display: none; border: 1px solid #eee; }
-    #statusInfo { font-size: 12px; color: #888; margin-top: 5px; text-align: center; min-height: 1.5em; }
+    #statusInfo { font-size: 12px; color: #888; margin-top: -10px; margin-bottom: 10px; text-align: center; min-height: 1.5em; }
+    .transfer-box { background: #fff; border: 2px dashed #34c759; padding: 15px; border-radius: 12px; }
+    .btn-secondary { background: #007aff; margin-top: 10px; }
+    .btn-outline { background: white; color: #34c759; border: 2px solid #34c759; margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -52,15 +56,27 @@
     <div id="logList"></div>
   </div>
 
+  <!-- 🆘 データ管理（出力・復元） -->
+  <div class="card transfer-box">
+    <div style="font-weight:bold; font-size:14px; color:#34c759; margin-bottom:10px;">📲 データの出力・強力復元</div>
+    <textarea id="transferArea" rows="3" placeholder="ここにデータを貼り付けて復元、または出力を押すとコピーされます"></textarea>
+    <button onclick="exportData()" class="btn-outline">現在のデータを出力（コピー）</button>
+    <button onclick="importData()" class="btn-secondary">データを合体復元する</button>
+  </div>
+
 <script>
   let mealLogs = [];
   let calorieChart = null;
   let base64Image = '';
 
   window.onload = () => {
-    const today = new Date();
-    document.getElementById('recordDate').value = today.toISOString().split('T')[0];
-    document.getElementById('monthPicker').value = today.toISOString().slice(0, 7);
+    // 今日をセット（タイムゾーン考慮）
+    const now = new Date();
+    const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    document.getElementById('recordDate').value = today;
+    document.getElementById('monthPicker').value = today.slice(0, 7);
+    
+    // 保存データの読み込み
     document.getElementById('apiKey').value = localStorage.getItem('calorie_key_v2026') || '';
     mealLogs = JSON.parse(localStorage.getItem('meal_logs_v2026')) || [];
     updateUI();
@@ -100,8 +116,7 @@
     btn.disabled = true;
 
     try {
-      // 1. モデルリストを取得
-      status.innerText = "利用可能なモデルを確認中...";
+      status.innerText = "モデルを確認中...";
       const mRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
       const mData = await mRes.json();
       
@@ -109,19 +124,12 @@
         .filter(m => m.supportedGenerationMethods.includes("generateContent"))
         .sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true }));
 
-      // 候補モデルを絞り込み（Flashを優先）
-      let candidateModels = [
-        ...models.filter(m => m.name.includes("flash")),
-        ...models.filter(m => !m.name.includes("flash"))
-      ];
-
-      const prompt = `食事分析JSON形式: {"dishName":"名前","calories":数値,"protein":数値,"fat":数値,"carbs":数値}`;
+      const prompt = `食事分析。JSON形式{"dishName":"名前","calories":数値,"protein":数値,"fat":数値,"carbs":数値}`;
       let success = false;
 
-      // 2. 執念のリトライループ：動くモデルが見つかるまで試す
-      for (let model of candidateModels) {
-        status.innerText = `モデル試行中: ${model.name.split('/').pop()}...`;
-        
+      // 執念のリトライループ
+      for (let model of models) {
+        status.innerText = `試行中: ${model.name.split('/').pop()}...`;
         try {
           const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${model.name}:generateContent?key=${apiKey}`, {
             method: 'POST',
@@ -133,9 +141,7 @@
           });
 
           const data = await res.json();
-          
           if (res.ok && data.candidates) {
-            // 成功！
             const rawText = data.candidates[0].content.parts[0].text;
             const result = JSON.parse(rawText.match(/\{.*\}/s)[0]);
             
@@ -149,30 +155,53 @@
             updateUI();
             
             success = true;
-            status.innerText = `解析成功 (${model.name.split('/').pop()})`;
-            break; // ループを抜ける
-          } else {
-            console.warn(`モデル ${model.name} は制限によりスキップします。`);
+            status.innerText = "解析成功！";
+            break;
           }
-        } catch (e) {
-          console.error(`モデル ${model.name} でエラー:`, e);
-        }
+        } catch (e) { console.warn(model.name + " 失敗。次を試します。"); }
       }
+      if (!success) throw new Error("全てのモデルが制限中または利用不可です。");
 
-      if (!success) {
-        throw new Error("すべての利用可能なモデルが制限に達しているか、APIキーが無効です。しばらく待ってからお試しください。");
-      }
-
-    } catch (err) { 
-      alert("全モデル試行失敗: " + err.message); 
-      status.innerText = "エラーが発生しました。";
-    } finally { 
-      btn.disabled = false; 
-      btn.innerText = "解析して保存";
-    }
+    } catch (err) { alert("失敗: " + err.message); status.innerText = "エラー"; }
+    finally { btn.disabled = false; }
   }
 
-  // --- UI・グラフ処理（変更なし） ---
+  function exportData() {
+    const dataStr = JSON.stringify(mealLogs);
+    const area = document.getElementById('transferArea');
+    area.value = dataStr;
+    area.select();
+    document.execCommand('copy');
+    alert("全データをコピーしました。メモ帳などに保存してください。");
+  }
+
+  function importData() {
+    let input = document.getElementById('transferArea').value.trim();
+    if (!input) return alert("データを貼り付けてください");
+    try {
+      input = input.replace(/^"/, '').replace(/"$/, '').replace(/\\"/g, '"');
+      const start = input.indexOf('[');
+      const end = input.lastIndexOf(']');
+      if (start === -1 || end === -1) throw new Error("無効な形式");
+      const imported = JSON.parse(input.substring(start, end + 1));
+      
+      if (Array.isArray(imported)) {
+        if (confirm(`${imported.length}件のデータを復元（合体）しますか？`)) {
+          imported.forEach(old => {
+            if (!mealLogs.some(cur => (cur.id === old.id) || (cur.date === old.date && cur.dishName === old.dishName))) {
+              mealLogs.push(old);
+            }
+          });
+          mealLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
+          localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
+          updateUI();
+          alert("復元完了！");
+          document.getElementById('transferArea').value = "";
+        }
+      }
+    } catch (e) { alert("復元失敗: 形式が正しくありません"); }
+  }
+
   function updateUI() {
     const month = document.getElementById('monthPicker').value;
     const list = document.getElementById('logList');
@@ -186,7 +215,7 @@
       div.innerHTML = `<div><b>${log.dishName}</b><br><small>${log.date}</small></div>
                        <div style="display:flex; align-items:center; gap:10px;">
                          <b>${log.calories} kcal</b>
-                         <button onclick="deleteLog(${log.id})" style="background:none;border:none;color:#ccc;cursor:pointer;">✕</button>
+                         <button onclick="deleteLog(${log.id})" style="background:none;border:none;color:#ccc;font-size:20px;">✕</button>
                        </div>`;
       list.appendChild(div);
     });
