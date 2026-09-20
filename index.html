@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>🥗 AI カロリーチェッカー Pro (執念の完全版)</title>
+  <title>🥗 AI カロリーチェッカー Pro (手動入力対応)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f2f2f7; margin: 0; padding: 20px; color: #1c1c1e; }
@@ -20,6 +20,7 @@
     .transfer-box { background: #fff; border: 2px dashed #34c759; padding: 15px; border-radius: 12px; }
     .btn-secondary { background: #007aff; margin-top: 10px; }
     .btn-outline { background: white; color: #34c759; border: 2px solid #34c759; margin-top: 10px; }
+    .input-label { font-size: 12px; color: #888; margin-bottom: 4px; display: block; }
   </style>
 </head>
 <body>
@@ -27,12 +28,17 @@
   <div class="card">
     <h1>🥗 AI カロリーチェッカー Pro</h1>
     <input type="password" id="apiKey" placeholder="Gemini API Key" />
-    <label style="font-size:12px; color:#888;">食べた日付</label>
+    
+    <label class="input-label">食べた日付</label>
     <input type="date" id="recordDate" />
     
+    <label class="input-label">📸 写真から解析</label>
     <img id="preview">
-    
     <input type="file" id="imageInput" accept="image/*" onchange="handleImageSelect(event)" />
+
+    <label class="input-label">✍️ または文章で入力（撮り忘れ時）</label>
+    <textarea id="textInput" rows="2" placeholder="例：カツカレーと生野菜サラダ" oninput="toggleButton()"></textarea>
+
     <button id="analyzeBtn" onclick="startAnalysis()" disabled>解析して保存</button>
     <div id="statusInfo"></div>
     
@@ -56,10 +62,9 @@
     <div id="logList"></div>
   </div>
 
-  <!-- 🆘 データ管理（出力・復元） -->
   <div class="card transfer-box">
     <div style="font-weight:bold; font-size:14px; color:#34c759; margin-bottom:10px;">📲 データの出力・強力復元</div>
-    <textarea id="transferArea" rows="3" placeholder="ここにデータを貼り付けて復元、または出力を押すとコピーされます"></textarea>
+    <textarea id="transferArea" rows="3" placeholder="コピーしたデータを貼り付け"></textarea>
     <button onclick="exportData()" class="btn-outline">現在のデータを出力（コピー）</button>
     <button onclick="importData()" class="btn-secondary">データを合体復元する</button>
   </div>
@@ -70,17 +75,22 @@
   let base64Image = '';
 
   window.onload = () => {
-    // 今日をセット（タイムゾーン考慮）
     const now = new Date();
     const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
     document.getElementById('recordDate').value = today;
     document.getElementById('monthPicker').value = today.slice(0, 7);
     
-    // 保存データの読み込み
     document.getElementById('apiKey').value = localStorage.getItem('calorie_key_v2026') || '';
     mealLogs = JSON.parse(localStorage.getItem('meal_logs_v2026')) || [];
     updateUI();
   };
+
+  // ボタンの有効・無効を切り替える
+  function toggleButton() {
+    const hasImage = base64Image !== '';
+    const hasText = document.getElementById('textInput').value.trim() !== '';
+    document.getElementById('analyzeBtn').disabled = !(hasImage || hasText);
+  }
 
   function handleImageSelect(event) {
     const file = event.target.files[0];
@@ -99,7 +109,7 @@
         const previewEl = document.getElementById('preview');
         previewEl.src = canvas.toDataURL('image/jpeg');
         previewEl.style.display = 'block';
-        document.getElementById('analyzeBtn').disabled = false;
+        toggleButton();
       };
       img.src = e.target.result;
     };
@@ -108,6 +118,7 @@
 
   async function startAnalysis() {
     const apiKey = document.getElementById('apiKey').value.trim();
+    const textInput = document.getElementById('textInput').value.trim();
     if (!apiKey) return alert("APIキーを入力してください");
     localStorage.setItem('calorie_key_v2026', apiKey);
 
@@ -124,10 +135,22 @@
         .filter(m => m.supportedGenerationMethods.includes("generateContent"))
         .sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true }));
 
-      const prompt = `食事分析。JSON形式{"dishName":"名前","calories":数値,"protein":数値,"fat":数値,"carbs":数値}`;
-      let success = false;
+      // 写真があるか文章があるかでプロンプトを切り分け
+      let contents = [];
+      if (base64Image) {
+        contents = [{ parts: [
+          { text: `食事分析JSON形式: {"dishName":"料理名","calories":数値,"protein":数値,"fat":数値,"carbs":数値}` },
+          { inline_data: { mime_type: "image/jpeg", data: base64Image } }
+        ]}];
+      } else {
+        contents = [{ parts: [
+          { text: `以下の食事内容から栄養価を推定し、JSON形式で返してください。
+                  食事内容: 「${textInput}」
+                  形式: {"dishName":"料理名","calories":数値,"protein":数値,"fat":数値,"carbs":数値}` }
+        ]}];
+      }
 
-      // 執念のリトライループ
+      let success = false;
       for (let model of models) {
         status.innerText = `試行中: ${model.name.split('/').pop()}...`;
         try {
@@ -135,7 +158,7 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "image/jpeg", data: base64Image } }] }],
+              contents: contents,
               generationConfig: { responseMimeType: "application/json" }
             })
           });
@@ -152,54 +175,52 @@
             mealLogs.push({ id: Date.now(), date: document.getElementById('recordDate').value, ...result });
             mealLogs.sort((a,b) => new Date(b.date) - new Date(a.date));
             localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
-            updateUI();
             
+            // 入力欄をリセット
+            document.getElementById('textInput').value = '';
+            document.getElementById('preview').style.display = 'none';
+            base64Image = '';
+            
+            updateUI();
             success = true;
             status.innerText = "解析成功！";
             break;
           }
-        } catch (e) { console.warn(model.name + " 失敗。次を試します。"); }
+        } catch (e) { console.warn(model.name + " 失敗。次へ"); }
       }
-      if (!success) throw new Error("全てのモデルが制限中または利用不可です。");
+      if (!success) throw new Error("解析できませんでした。");
 
     } catch (err) { alert("失敗: " + err.message); status.innerText = "エラー"; }
-    finally { btn.disabled = false; }
+    finally { btn.disabled = false; toggleButton(); }
   }
 
+  // --- 以下、管理・UI系ロジック（共通） ---
   function exportData() {
     const dataStr = JSON.stringify(mealLogs);
     const area = document.getElementById('transferArea');
     area.value = dataStr;
     area.select();
     document.execCommand('copy');
-    alert("全データをコピーしました。メモ帳などに保存してください。");
+    alert("コピーしました");
   }
 
   function importData() {
     let input = document.getElementById('transferArea').value.trim();
-    if (!input) return alert("データを貼り付けてください");
     try {
       input = input.replace(/^"/, '').replace(/"$/, '').replace(/\\"/g, '"');
       const start = input.indexOf('[');
       const end = input.lastIndexOf(']');
-      if (start === -1 || end === -1) throw new Error("無効な形式");
       const imported = JSON.parse(input.substring(start, end + 1));
-      
       if (Array.isArray(imported)) {
-        if (confirm(`${imported.length}件のデータを復元（合体）しますか？`)) {
-          imported.forEach(old => {
-            if (!mealLogs.some(cur => (cur.id === old.id) || (cur.date === old.date && cur.dishName === old.dishName))) {
-              mealLogs.push(old);
-            }
-          });
-          mealLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
-          localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
-          updateUI();
-          alert("復元完了！");
-          document.getElementById('transferArea').value = "";
-        }
+        imported.forEach(old => {
+          if (!mealLogs.some(cur => (cur.id === old.id))) mealLogs.push(old);
+        });
+        mealLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
+        localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs));
+        updateUI();
+        alert("復元完了");
       }
-    } catch (e) { alert("復元失敗: 形式が正しくありません"); }
+    } catch (e) { alert("形式エラー"); }
   }
 
   function updateUI() {
@@ -224,11 +245,7 @@
   }
 
   function deleteLog(id) {
-    if (confirm("削除しますか？")) { 
-      mealLogs = mealLogs.filter(l => l.id !== id); 
-      localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs)); 
-      updateUI(); 
-    }
+    if (confirm("削除?")) { mealLogs = mealLogs.filter(l => l.id !== id); localStorage.setItem('meal_logs_v2026', JSON.stringify(mealLogs)); updateUI(); }
   }
 
   function renderChart(monthStr, logs) {
